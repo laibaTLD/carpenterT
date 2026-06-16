@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Service, ServiceAreaPage } from '@/app/lib/types';
@@ -19,7 +20,7 @@ import {
   normalizeSlug,
   resolveServiceSlug,
 } from '@/app/lib/serviceAreaSlugs';
-import { cn } from '@/app/lib/utils';
+import { cn, getImageSrc } from '@/app/lib/utils';
 
 type ServiceArea = { city: string; region: string };
 
@@ -209,6 +210,13 @@ export function Header() {
   const businessName = useMemo(() => getBrandName(site), [site]);
   const phoneNumber = site?.business?.phone?.trim() || site?.business?.emergencyPhone?.trim() || '';
 
+  const logoSrc = useMemo(() => {
+    const url = site?.footer?.logo?.url || site?.theme?.logoUrl;
+    return url ? getImageSrc(url) : '';
+  }, [site?.footer?.logo?.url, site?.theme?.logoUrl]);
+
+  const logoAlt = site?.footer?.logo?.altText?.trim() || businessName || 'Logo';
+
   const servingAreaGroups = useMemo(
     () => buildServingAreaGroups(services, serviceAreaPages, site?.serviceAreas),
     [services, serviceAreaPages, site?.serviceAreas]
@@ -320,10 +328,23 @@ export function Header() {
             className="shrink-0 no-underline"
             style={{ color: textColor, fontFamily: fonts.heading }}
           >
-            <BrandMark
-              name={businessName}
-              className="text-[1.05rem] font-normal tracking-[0.12em] sm:text-[1.15rem]"
-            />
+            {logoSrc ? (
+              <div className="relative h-9 w-32 sm:h-10 sm:w-36">
+                <Image
+                  src={logoSrc}
+                  alt={logoAlt}
+                  fill
+                  priority
+                  className="object-contain object-left"
+                  sizes="144px"
+                />
+              </div>
+            ) : (
+              <BrandMark
+                name={businessName}
+                className="text-[1.05rem] font-normal tracking-[0.12em] sm:text-[1.15rem]"
+              />
+            )}
           </Link>
 
           <nav className="hidden items-center gap-8 lg:flex">

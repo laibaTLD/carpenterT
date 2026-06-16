@@ -1,16 +1,17 @@
 'use client';
 
+import Link from 'next/link';
 import NextImage from 'next/image';
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import type { Page } from '@/app/lib/types';
+import { MaskBlindRevealImage } from '@/app/components/cinematic/MaskBlindRevealImage';
+import { useWebBuilder } from '@/app/providers/WebBuilderProvider';
 import { useScrollAnimation } from '@/app/hooks/useScrollAnimation';
 import { useSectionTheme } from '@/app/hooks/useSectionTheme';
 import { tiptapToText } from '@/app/lib/seo';
 import { SectionHeading } from '@/app/components/ui/SectionHeading';
 import {
-  CraftIndex,
   CraftReveal,
-  CraftRule,
   CraftSection,
   CRAFT_DESC_CLASS,
   CRAFT_TITLE_CLASS,
@@ -21,57 +22,40 @@ import { cn, getImageSrc } from '@/app/lib/utils';
 interface GallerySectionProps {
   gallerySection?: Page['gallerySection'];
   className?: string;
+  /** Max images on home; 0 = show all */
+  imagesLimit?: number;
 }
 
 type GalleryImage = {
   id: string;
   imageUrl: string;
   altText: string;
+  caption?: string;
 };
-
-const IMAGES_PER_PAGE = 3;
 
 function GalleryNavButton({
   direction,
   onClick,
-  disabled,
-  accentColor,
-  colors,
   className,
+  colors,
 }: {
   direction: 'prev' | 'next';
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
-  disabled?: boolean;
-  accentColor: string;
-  colors?: ReturnType<typeof useSectionTheme>['colors'];
   className?: string;
+  colors: ReturnType<typeof useSectionTheme>['colors'];
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
-      aria-label={direction === 'prev' ? 'Previous images' : 'Next images'}
+      aria-label={direction === 'prev' ? 'Previous image' : 'Next image'}
       className={cn(
-        'group flex h-10 w-10 items-center justify-center rounded-full border transition-all',
-        'disabled:cursor-not-allowed disabled:opacity-30',
+        'flex h-11 w-11 items-center justify-center rounded-full border bg-white/90 shadow-lg backdrop-blur-sm transition-transform hover:scale-105',
         className
       )}
-      style={{
-        borderColor: `${accentColor}40`,
-        color: colors?.secondaryText ?? accentColor,
-      }}
+      style={{ borderColor: `color-mix(in srgb, ${colors.mainText} 12%, transparent)` }}
     >
-      <svg
-        className={cn(
-          'h-4 w-4 transition-transform',
-          direction === 'prev' ? 'group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5',
-          disabled && 'group-hover:translate-x-0'
-        )}
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
         {direction === 'prev' ? (
           <path d="M15 19l-7-7 7-7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         ) : (
@@ -82,240 +66,204 @@ function GalleryNavButton({
   );
 }
 
-function GalleryItem({
-  image,
-  index,
-  accentColor,
-  colors,
-  borderColor,
-  onSelect,
-}: {
-  image: GalleryImage;
-  index: number;
-  accentColor: string;
-  colors: ReturnType<typeof useSectionTheme>['colors'];
-  borderColor: string;
-  onSelect: (image: GalleryImage) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(image)}
-      className="group relative w-full cursor-pointer border-t pt-6 text-left"
-      style={{ borderColor }}
-    >
-      <div className="mb-4 flex items-center gap-3">
-        <CraftIndex index={index} />
-        <CraftRule className="w-10" />
-        <span
-          className="ml-auto text-[10px] font-bold uppercase tracking-[0.3em] opacity-0 transition-opacity group-hover:opacity-100"
-          style={{ color: colors.inactive }}
-        >
-          View
-        </span>
-      </div>
+export function GallerySection({
+  gallerySection,
+  className,
+  imagesLimit = 0,
+}: GallerySectionProps) {
+  const { pages } = useWebBuilder();
+  const { colors, fonts, accentColor } = useCraftTheme();
 
-      <div className="relative">
-        <div
-          className="absolute -bottom-3 -right-3 hidden h-full w-full border sm:block"
-          style={{ borderColor: `${accentColor}30` }}
-        />
+  const sectionData = useMemo(() => {
+    const fallbackPage =
+      pages.find((p) => p.gallerySection?.enabled && (p.gallerySection?.images?.length ?? 0) > 0) ??
+      pages.find((p) => (p.gallerySection?.images?.length ?? 0) > 0);
 
-        <div
-          className="relative aspect-[4/5] overflow-hidden"
-          style={{ backgroundColor: colors.sectionBackgroundLight }}
-        >
-          <NextImage
-            src={image.imageUrl}
-            alt={image.altText}
-            fill
-            className="object-cover transition-all duration-[1.2s] ease-out grayscale-[15%] group-hover:scale-[1.04] group-hover:grayscale-0"
-          />
-          <div
-            className="absolute inset-0 opacity-0 transition-opacity duration-700 group-hover:opacity-100"
-            style={{
-              background: `linear-gradient(160deg, transparent 40%, ${accentColor}25 100%)`,
-            }}
-          />
-        </div>
-      </div>
-    </button>
-  );
-}
+    const fallback = fallbackPage?.gallerySection;
+    const current = gallerySection;
 
-export function GallerySection({ gallerySection, className }: GallerySectionProps) {
-  const { colors, accentColor, borderColor } = useCraftTheme();
+    if (!current && !fallback) return undefined;
 
-  const title = useMemo(() => tiptapToText(gallerySection?.title), [gallerySection?.title]);
-  const description = useMemo(
-    () => tiptapToText(gallerySection?.description),
-    [gallerySection?.description]
-  );
+    const images =
+      (current?.images?.length ? current.images : undefined) ??
+      fallback?.images ??
+      [];
+
+    return {
+      enabled: current?.enabled ?? fallback?.enabled ?? images.length > 0,
+      title: current?.title ?? fallback?.title,
+      description: current?.description ?? fallback?.description,
+      images,
+    };
+  }, [gallerySection, pages]);
+
+  const title = useMemo(() => tiptapToText(sectionData?.title) || 'Our Gallery', [sectionData?.title]);
+  const description = useMemo(() => tiptapToText(sectionData?.description), [sectionData?.description]);
+
   const galleryImages = useMemo<GalleryImage[]>(() => {
-    return (gallerySection?.images ?? [])
-      .map((image, index) => {
-        const url = image.url ? getImageSrc(image.url) : '';
-        if (!url) return null;
-        return {
-          id: `gallery-${index}`,
-          imageUrl: url,
-          altText: image.altText?.trim() || tiptapToText(image.caption) || `Gallery image ${index + 1}`,
-        };
-      })
-      .filter((image): image is GalleryImage => image !== null);
-  }, [gallerySection?.images]);
+    const mapped =
+      sectionData?.images
+        ?.map((image, index) => {
+          const url = image.url ? getImageSrc(image.url) : '';
+          if (!url) return null;
+          const caption = tiptapToText(image.caption);
+          return {
+            id: `gallery-${index}`,
+            imageUrl: url,
+            altText: image.altText?.trim() || caption || `Gallery image ${index + 1}`,
+            caption: caption || undefined,
+          };
+        })
+        .filter((image): image is GalleryImage => image !== null) ?? [];
 
-  const { ref: headerRef, isVisible: headerVisible } = useScrollAnimation<HTMLDivElement>({ threshold: 0.1 });
-  const [page, setPage] = useState(0);
+    if (imagesLimit > 0) return mapped.slice(0, imagesLimit);
+    return mapped;
+  }, [sectionData?.images, imagesLimit]);
+
+  const { ref: sectionRef, isVisible } = useScrollAnimation<HTMLDivElement>({ threshold: 0.1 });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-
-  const totalPages = Math.max(1, Math.ceil(galleryImages.length / IMAGES_PER_PAGE));
-  const canPaginate = galleryImages.length > IMAGES_PER_PAGE;
-
-  const pageImages = useMemo(() => {
-    const start = page * IMAGES_PER_PAGE;
-    return galleryImages.slice(start, start + IMAGES_PER_PAGE);
-  }, [galleryImages, page]);
 
   const selectedImage = selectedIndex !== null ? galleryImages[selectedIndex] ?? null : null;
 
   useEffect(() => {
-    if (page >= totalPages) setPage(0);
-  }, [page, totalPages]);
+    if (selectedIndex === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedIndex(null);
+      if (e.key === 'ArrowLeft' && galleryImages.length > 1) {
+        setSelectedIndex((i) => (i === null ? null : (i - 1 + galleryImages.length) % galleryImages.length));
+      }
+      if (e.key === 'ArrowRight' && galleryImages.length > 1) {
+        setSelectedIndex((i) => (i === null ? null : (i + 1) % galleryImages.length));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedIndex, galleryImages.length]);
 
-  const goToPrevPage = () => setPage((p) => (p - 1 + totalPages) % totalPages);
-  const goToNextPage = () => setPage((p) => (p + 1) % totalPages);
-
-  const goToPrevImage = () => {
-    if (selectedIndex === null || galleryImages.length <= 1) return;
-    setSelectedIndex((selectedIndex - 1 + galleryImages.length) % galleryImages.length);
-  };
-
-  const goToNextImage = () => {
-    if (selectedIndex === null || galleryImages.length <= 1) return;
-    setSelectedIndex((selectedIndex + 1) % galleryImages.length);
-  };
-
-  if (!gallerySection || gallerySection.enabled === false) return null;
+  if (sectionData?.enabled === false) return null;
   if (!title && !description && galleryImages.length === 0) return null;
 
-  const overlayBg = `color-mix(in srgb, ${colors.sectionBackgroundDark} 90%, transparent)`;
+  const overlayBg = `color-mix(in srgb, ${colors.sectionBackgroundDark} 92%, transparent)`;
 
   return (
     <>
-    <CraftSection id="gallery" surface="page" className={className}>
-      <CraftReveal visible={headerVisible} className="mb-8 max-w-4xl lg:mb-10">
-        <div ref={headerRef}>
-          <SectionHeading
-            eyebrow="Our Gallery"
-            title={title}
-            description={description}
-            titleClassName={CRAFT_TITLE_CLASS}
-            descriptionClassName={CRAFT_DESC_CLASS}
-          />
-        </div>
-      </CraftReveal>
+      <CraftSection
+        id="gallery"
+        surface="muted"
+        accentLine
+        className={cn('overflow-visible', className)}
+      >
+        <div ref={sectionRef} className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-14 xl:gap-20">
+          <CraftReveal
+            visible={isVisible}
+            className="lg:col-span-4 lg:sticky lg:top-24 lg:self-start xl:col-span-3"
+          >
+            <SectionHeading
+              eyebrow="Gallery"
+              title={title}
+              description={description}
+              titleClassName={CRAFT_TITLE_CLASS}
+              descriptionClassName={CRAFT_DESC_CLASS}
+            />
 
-      {galleryImages.length > 0 && (
-        <div>
-            <div
-              key={page}
-              className="grid grid-cols-1 gap-x-6 gap-y-10 transition-opacity duration-500 sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-3 lg:gap-y-12"
+            <Link
+              href="/gallery"
+              className="mt-7 inline-flex min-h-[44px] items-center justify-center border bg-white px-8 py-3 text-[11px] font-semibold uppercase tracking-[0.2em] transition-opacity hover:opacity-85"
+              style={{
+                borderColor: `color-mix(in srgb, ${colors.mainText} 35%, transparent)`,
+                color: colors.mainText,
+                fontFamily: fonts.body,
+              }}
             >
-              {pageImages.map((image, index) => (
-                <GalleryItem
+              View Gallery
+            </Link>
+          </CraftReveal>
+
+          {galleryImages.length > 0 ? (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6 lg:col-span-8 xl:col-span-9">
+              {galleryImages.map((image, index) => (
+                <button
                   key={image.id}
-                  image={image}
-                  index={page * IMAGES_PER_PAGE + index}
-                  accentColor={accentColor}
-                  colors={colors}
-                  borderColor={borderColor}
-                  onSelect={(img) => {
-                    const idx = galleryImages.findIndex((g) => g.id === img.id);
-                    setSelectedIndex(idx >= 0 ? idx : null);
-                  }}
-                />
+                  type="button"
+                  onClick={() => setSelectedIndex(index)}
+                  className={cn(
+                    'group w-full text-left transition-opacity duration-700',
+                    isVisible ? 'opacity-100' : 'opacity-0',
+                    index % 3 === 1 ? 'sm:mt-8' : ''
+                  )}
+                  style={{ transitionDelay: `${index * 80}ms` }}
+                >
+                  <MaskBlindRevealImage
+                    src={image.imageUrl}
+                    alt={image.altText}
+                    aspectClassName={index % 2 === 0 ? 'aspect-[4/3]' : 'aspect-[3/4]'}
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    priority={index < 2}
+                    start="top 88%"
+                    end="center center"
+                  />
+                  {(image.caption || image.altText) && (
+                    <p
+                      className="mt-3 text-xs uppercase tracking-[0.18em] opacity-0 transition-opacity group-hover:opacity-100"
+                      style={{ color: colors.secondaryText, fontFamily: fonts.body }}
+                    >
+                      {image.caption || image.altText}
+                    </p>
+                  )}
+                </button>
               ))}
             </div>
-
-            {canPaginate && (
-              <div className="mt-8 flex items-center justify-end gap-4 sm:mt-10">
-                <span className="text-[10px] font-mono font-medium" style={{ color: colors.secondaryText }}>
-                  {String(page + 1).padStart(2, '0')} / {String(totalPages).padStart(2, '0')}
-                </span>
-                <GalleryNavButton
-                  direction="prev"
-                  onClick={() => goToPrevPage()}
-                  accentColor={accentColor}
-                  colors={colors}
-                />
-                <GalleryNavButton
-                  direction="next"
-                  onClick={() => goToNextPage()}
-                  accentColor={accentColor}
-                  colors={colors}
-                />
-              </div>
-            )}
-          </div>
-        )}
-    </CraftSection>
+          ) : (
+            <div className="lg:col-span-8 xl:col-span-9">
+              <p className="text-sm" style={{ color: colors.secondaryText }}>
+                No gallery images yet. Add images in the builder to show them here.
+              </p>
+            </div>
+          )}
+        </div>
+      </CraftSection>
 
       {selectedImage && selectedIndex !== null && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm md:p-12"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
           style={{ backgroundColor: overlayBg }}
           onClick={() => setSelectedIndex(null)}
           role="dialog"
           aria-modal="true"
-          aria-label="Gallery image preview"
+          aria-label="Gallery preview"
         >
           <button
             type="button"
             onClick={() => setSelectedIndex(null)}
-            className="group absolute right-6 top-6 flex items-center gap-3 md:right-10 md:top-10"
+            className="absolute right-4 top-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/80 hover:text-white sm:right-8 sm:top-8"
           >
-            <span
-              className="text-[10px] font-bold uppercase tracking-[0.35em] transition-opacity group-hover:opacity-100"
-              style={{ color: colors.darkSecondaryText }}
-            >
-              Close
-            </span>
-            <div
-              className="h-px w-8 transition-all group-hover:w-12"
-              style={{ backgroundColor: colors.darkSecondaryText }}
-            />
+            Close
           </button>
 
           {galleryImages.length > 1 && (
             <>
               <GalleryNavButton
                 direction="prev"
+                colors={colors}
+                className="absolute left-3 top-1/2 -translate-y-1/2 sm:left-6"
                 onClick={(e) => {
                   e.stopPropagation();
-                  goToPrevImage();
+                  setSelectedIndex((selectedIndex - 1 + galleryImages.length) % galleryImages.length);
                 }}
-                accentColor={colors.darkPrimaryText}
-                colors={colors}
-                className="absolute left-4 top-1/2 z-10 -translate-y-1/2 md:left-8"
               />
               <GalleryNavButton
                 direction="next"
+                colors={colors}
+                className="absolute right-3 top-1/2 -translate-y-1/2 sm:right-6"
                 onClick={(e) => {
                   e.stopPropagation();
-                  goToNextImage();
+                  setSelectedIndex((selectedIndex + 1) % galleryImages.length);
                 }}
-                accentColor={colors.darkPrimaryText}
-                colors={colors}
-                className="absolute right-4 top-1/2 z-10 -translate-y-1/2 md:right-8"
               />
             </>
           )}
 
-          <div
-            className="relative h-[70vh] w-full max-w-5xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="relative h-[min(80vh,720px)] w-full max-w-5xl" onClick={(e) => e.stopPropagation()}>
             <NextImage
               key={selectedImage.id}
               src={selectedImage.imageUrl}
@@ -327,11 +275,8 @@ export function GallerySection({ gallerySection, className }: GallerySectionProp
           </div>
 
           {galleryImages.length > 1 && (
-            <span
-              className="absolute bottom-6 rounded-full px-4 py-2 text-[10px] font-mono font-medium md:bottom-10"
-              style={{ backgroundColor: overlayBg, color: colors.darkPrimaryText }}
-            >
-              {String(selectedIndex + 1).padStart(2, '0')} / {String(galleryImages.length).padStart(2, '0')}
+            <span className="absolute bottom-4 rounded-full bg-black/40 px-3 py-1.5 text-[11px] text-white sm:bottom-8">
+              {selectedIndex + 1} / {galleryImages.length}
             </span>
           )}
         </div>

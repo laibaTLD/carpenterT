@@ -123,7 +123,7 @@ export default function HomeClient() {
           projectsSection={displayPage.projectsSection}
           projectsLimit={3}
         />
-        <GallerySection gallerySection={displayPage.gallerySection} />
+        <GallerySection gallerySection={displayPage.gallerySection} imagesLimit={6} />
         <WhyChooseUsSection whyChooseUsSection={displayPage.whyChooseUsSection} />
         <FAQSection faqSection={displayPage.faqSection} />
         <TestimonialsSection testimonialsSection={displayPage.testimonialsSection} />

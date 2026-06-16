@@ -359,9 +359,13 @@ export function getFooterNavLinks(pages?: Page[]): FooterNavLink[] {
   return links;
 }
 
-/** Header nav uses the same published page routes as the footer (includes home). */
+/** Header nav — published CMS pages only (no hardcoded extra routes). */
 export function getHeaderNavLinks(pages?: Page[]): FooterNavLink[] {
-  return getFooterNavLinks(pages);
+  return getHeaderNavItems(pages).map((item) => ({
+    id: item.id,
+    label: item.name,
+    href: item.href,
+  }));
 }
 
 /** Page-based header entries with optional serving-areas dropdown after Services. */
@@ -369,10 +373,10 @@ export function buildHeaderNavEntries(
   pages?: Page[],
   options?: { includeServingAreas?: boolean }
 ): HomeHeaderNavEntry[] {
-  const entries: HomeHeaderNavEntry[] = getHeaderNavLinks(pages).map((link) => ({
+  const entries: HomeHeaderNavEntry[] = getHeaderNavItems(pages).map((link) => ({
     kind: 'anchor',
     id: link.id,
-    name: link.label,
+    name: link.name,
     href: link.href,
   }));
 

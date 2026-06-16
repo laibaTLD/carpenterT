@@ -152,7 +152,7 @@ export function Footer() {
                     src={logoSrc}
                     alt={logoAlt}
                     fill
-                    className="object-contain object-left brightness-0 invert"
+                    className="object-contain object-left"
                   />
                 </div>
               ) : (
