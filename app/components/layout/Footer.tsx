@@ -10,6 +10,7 @@ import {
   getCopyrightText,
   getFooterDescriptionContent,
   getFooterNavLinks,
+  isLegalNavHref,
 } from '@/app/lib/siteContent';
 import { tiptapToText } from '@/app/lib/seo';
 import { cn, getImageSrc } from '@/app/lib/utils';
@@ -32,9 +33,20 @@ function formatAddressLine(address?: {
   zipCode?: string;
 }): string {
   if (!address) return '';
-  const cityState = [address.city, address.state].filter(Boolean).join(', ');
-  const main = [address.street, cityState].filter(Boolean).join(' ');
-  return address.zipCode ? `${main} ${address.zipCode}`.trim() : main;
+
+  const street = address.street?.trim() || '';
+  const city = address.city?.trim() || '';
+  const state = address.state?.trim() || '';
+  const zip = address.zipCode?.trim() || '';
+  const cityStateZip = [city, state].filter(Boolean).join(', ') + (zip ? ` ${zip}` : '');
+
+  if (street) {
+    const streetLower = street.toLowerCase();
+    if (city && streetLower.includes(city.toLowerCase())) return street;
+    return cityStateZip ? `${street} ${cityStateZip}`.trim() : street;
+  }
+
+  return cityStateZip.trim();
 }
 
 function formatPlatformLabel(platform: string): string {
@@ -101,28 +113,25 @@ export function Footer() {
     );
   }, [site?.footer?.columns]);
 
-  const navLinks = useMemo(() => {
+  const exploreLinks = useMemo(
+    () => pageLinks.filter((link) => !isLegalNavHref(link.href)),
+    [pageLinks]
+  );
+
+  const legalLinks = useMemo(() => {
     const seen = new Set<string>();
     const merged: Array<{ label: string; href: string }> = [];
 
     for (const link of pageLinks) {
-      if (seen.has(link.href)) continue;
+      if (!isLegalNavHref(link.href) || seen.has(link.href)) continue;
       seen.add(link.href);
       merged.push({ label: link.label, href: link.href });
     }
 
     for (const link of columnLinks) {
-      if (seen.has(link.href)) continue;
+      if (!isLegalNavHref(link.href) || seen.has(link.href)) continue;
       seen.add(link.href);
       merged.push({ label: link.label, href: link.href });
-    }
-
-    if (merged.length === 0) {
-      return [
-        { label: 'Accessibility Statement', href: '/accessibility-statement' },
-        { label: 'Privacy Policy', href: '/privacy-policy' },
-        { label: 'Terms of Service', href: '/terms-of-service' },
-      ];
     }
 
     return merged;
@@ -175,7 +184,7 @@ export function Footer() {
           <div className="lg:col-span-3">
             <FooterColumnTitle fonts={fonts}>Explore</FooterColumnTitle>
             <nav className="grid grid-cols-1 gap-y-3 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-1">
-              {navLinks.map((link) => (
+              {exploreLinks.map((link) => (
                 <Link
                   key={`${link.href}-${link.label}`}
                   href={link.href}
@@ -246,22 +255,20 @@ export function Footer() {
             {copyright || `${year} © ${businessName || 'Our Business'}. All Rights Reserved.`}
           </p>
 
-          <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-            {[
-              { label: 'Privacy', href: '/privacy-policy' },
-              { label: 'Terms', href: '/terms-of-service' },
-              { label: 'Accessibility', href: '/accessibility-statement' },
-            ].map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-[11px] uppercase tracking-[0.18em] transition-opacity hover:opacity-70"
-                style={{ color: WHITE, fontFamily: fonts.body, opacity: 0.75 }}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          {legalLinks.length > 0 && (
+            <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+              {legalLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="text-[11px] uppercase tracking-[0.18em] transition-opacity hover:opacity-70"
+                  style={{ color: WHITE, fontFamily: fonts.body, opacity: 0.75 }}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </nav>
+          )}
         </div>
       </div>
     </footer>

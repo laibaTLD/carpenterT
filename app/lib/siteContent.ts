@@ -266,6 +266,12 @@ export function getHeaderNavItems(pages?: Page[]): HeaderNavItem[] {
   const seenHrefs = new Set<string>();
   const items: HeaderNavItem[] = [];
 
+  const homePage = pages?.find((p) => p.pageType === 'home' && p.status === 'published');
+  if (homePage?.name?.trim()) {
+    items.push({ id: homePage._id, name: homePage.name.trim(), href: '/' });
+    seenHrefs.add('/');
+  }
+
   for (const p of published) {
     if (isTestimonialsPage(p)) continue;
     const href = getPageHref(p);
@@ -300,12 +306,6 @@ const FOOTER_PAGE_TYPE_ORDER: Page['pageType'][] = [
   'blog-list',
   'project-detail',
   'contact',
-];
-
-/** Extra app routes when no dedicated CMS page exists in the list. */
-const EXTRA_FOOTER_NAV: { slug: string; href: string; defaultName: string }[] = [
-  { slug: 'testimonials', href: TESTIMONIALS_ROUTE, defaultName: 'Testimonials' },
-  { slug: 'gallery', href: '/gallery', defaultName: 'Gallery' },
 ];
 
 /** All published pages for footer Explore — same on every route (ignores per-page footer link overrides). */
@@ -345,18 +345,14 @@ export function getFooterNavLinks(pages?: Page[]): FooterNavLink[] {
     links.push({ id: page._id, label: page.name.trim(), href });
   }
 
-  for (const extra of EXTRA_FOOTER_NAV) {
-    if (seenHrefs.has(extra.href)) continue;
-    const cmsPage = published.find((p) => normalizePageSlug(p.slug) === extra.slug);
-    links.push({
-      id: cmsPage?._id ?? `nav-${extra.slug}`,
-      label: cmsPage?.name?.trim() || extra.defaultName,
-      href: cmsPage ? getPageHref(cmsPage) : extra.href,
-    });
-    seenHrefs.add(extra.href);
-  }
-
   return links;
+}
+
+const LEGAL_LINK_HREFS = ['/privacy-policy', '/terms-of-service', '/accessibility-statement'] as const;
+
+export function isLegalNavHref(href: string): boolean {
+  const path = href.split(/[?#]/)[0] || '';
+  return (LEGAL_LINK_HREFS as readonly string[]).includes(path);
 }
 
 /** Header nav — published CMS pages only (no hardcoded extra routes). */
@@ -368,29 +364,14 @@ export function getHeaderNavLinks(pages?: Page[]): FooterNavLink[] {
   }));
 }
 
-/** Page-based header entries with optional serving-areas dropdown after Services. */
-export function buildHeaderNavEntries(
-  pages?: Page[],
-  options?: { includeServingAreas?: boolean }
-): HomeHeaderNavEntry[] {
-  const entries: HomeHeaderNavEntry[] = getHeaderNavItems(pages).map((link) => ({
+/** Page-based header entries from published CMS pages. */
+export function buildHeaderNavEntries(pages?: Page[]): HomeHeaderNavEntry[] {
+  return getHeaderNavItems(pages).map((link) => ({
     kind: 'anchor',
     id: link.id,
     name: link.name,
     href: link.href,
   }));
-
-  if (!options?.includeServingAreas) return entries;
-
-  const servicePage = pages?.find((p) => p.pageType === 'service-list' && p.status === 'published');
-  const servicesIdx = servicePage
-    ? entries.findIndex((e) => e.kind === 'anchor' && e.id === servicePage._id)
-    : entries.findIndex((e) => e.kind === 'anchor' && e.href === '/services');
-
-  const insertAt = servicesIdx >= 0 ? servicesIdx + 1 : entries.length;
-  entries.splice(insertAt, 0, { kind: 'serving-areas' });
-
-  return entries;
 }
 
 export function getCopyrightText(site?: Site | null): string {
